@@ -285,6 +285,107 @@ npm run test:fetch    # Test spec fetching
 npm run test:guide    # Test getting started guide
 ```
 
+## 🔧 Development Workflow
+
+### Do I Need to Start the Server Manually?
+
+**No!** The MCP server starts **automatically** when your AI client (Cline, Claude Desktop, etc.) needs it. You don't run `npm start` manually.
+
+### Complete Development Setup
+
+1. **Build the Project** (required after any code changes):
+   ```bash
+   npm run build
+   ```
+   This compiles TypeScript to `dist/index.js` which your MCP config references.
+
+2. **Start Your Laravel API** (must be running):
+   ```bash
+   # In your Laravel project
+   php artisan serve
+   # Should run on http://localhost:8000
+   ```
+
+3. **Configure Your MCP Client** (one-time setup):
+   
+   **For Cline (VS Code)** - Edit `.vscode/mcp.json` or Cline settings:
+   ```json
+   {
+     "mcpServers": {
+       "openapi": {
+         "command": "node",
+         "args": ["/absolute/path/to/palanca-play-mcp-api/dist/index.js"],
+         "env": {
+           "API_MODE": "http",
+           "API_BASE_URL": "http://localhost:8000",
+           "API_SPEC_PATH": "/docs/api.json"
+         }
+       }
+     }
+   }
+   ```
+   
+   **For Claude Desktop** - Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+   ```json
+   {
+     "mcpServers": {
+       "openapi": {
+         "command": "node",
+         "args": ["/absolute/path/to/palanca-play-mcp-api/dist/index.js"],
+         "env": {
+           "API_MODE": "http",
+           "API_BASE_URL": "http://localhost:8000",
+           "API_SPEC_PATH": "/docs/api.json"
+         }
+       }
+     }
+   }
+   ```
+   
+   ⚠️ **Replace `/absolute/path/to/palanca-play-mcp-api`** with your actual absolute path!
+
+4. **Restart Your AI Client**: 
+   - Cline: Reload VS Code window or restart Cline
+   - Claude Desktop: Quit and restart the application
+
+### When Making Changes
+
+```bash
+# 1. Edit TypeScript files in src/
+# 2. Rebuild
+npm run build
+
+# 3. Restart your AI client to load the new version
+# That's it!
+```
+
+### Quick Reference
+
+| Action | Do You Need To... |
+|--------|-------------------|
+| Use MCP server | ❌ Manually start it (auto-starts) |
+| After code changes | ✅ Run `npm run build` |
+| After building | ✅ Restart your AI client |
+| During development | ✅ Keep Laravel API running on localhost:8000 |
+| For local testing | ✅ Use `.env` file + `npm test` |
+| For MCP deployment | ✅ Use MCP config env vars |
+
+### Development Tips
+
+**Watch Mode** (auto-rebuild on save):
+```bash
+npm run watch
+```
+Keep this running in a terminal during development. Still need to restart AI client after rebuilds.
+
+**Testing Without AI Client**:
+```bash
+# Uses .env file configuration
+npm test              # Full MCP test
+npm run test:fetch    # Test spec fetching only
+npm run test:guide    # Test getting started guide
+```
+
 ## 🔍 How It Works
 
 1. **Startup**: Server loads OpenAPI spec from HTTP endpoint or file
@@ -292,6 +393,7 @@ npm run test:guide    # Test getting started guide
 3. **Tools**: Provides query capabilities for AI agents
 4. **Dynamic**: Fetches fresh data on each request (HTTP mode)
 5. **Configuration**: Uses `.env` for local dev, MCP config env vars for deployment
+6. **Auto-Start**: MCP client launches the server automatically when AI needs it
 
 ## 📦 Dependencies
 
