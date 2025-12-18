@@ -22,6 +22,8 @@ This MCP server acts as a bridge between AI agents (like Claude, GPT, or custom 
 - 🔄 **Dual Source Mode**: Fetch OpenAPI spec from HTTP endpoint OR load from local file
 - 📚 **4 Resources**: Getting started guide, endpoints list, tags list, and full spec
 - 🔧 **3 Tools**: Query endpoint details, search endpoints, and retrieve schemas
+- ✨ **Auto-Resolved Schemas**: All `$ref` references automatically resolved - no manual resolution needed!
+- 📝 **Example Data**: Includes request/response examples when available in OpenAPI spec
 - 🎯 **Self-Documenting**: Built-in getting started guide that AI agents can read
 - 🔐 **Auth Detection**: Automatically identifies public vs protected endpoints
 - 📊 **Live Statistics**: Real-time API metrics (endpoints, schemas, tags count)
@@ -191,7 +193,16 @@ Get comprehensive information about a specific endpoint.
 - `method` (required): HTTP method (GET, POST, PUT, DELETE, etc.)
 - `path` (required): Endpoint path (e.g., `/api/users/login`)
 
-**Returns:** Request body schema, parameters, responses, authentication requirements
+**Returns:**
+- ✨ **Fully resolved schemas** - All `$ref` references automatically resolved!
+- 📝 **Example request data** - Concrete JSON examples when available
+- 📝 **Example response data** - See actual response structures
+- Request body schema with all nested properties
+- Parameters (path, query, headers)
+- Response schemas for all status codes
+- Authentication requirements
+
+**Enhanced in v1.1.0:** No need to call `get_schema_details` separately anymore!
 
 ### `search_endpoints`
 Search and filter endpoints by various criteria.
@@ -204,12 +215,14 @@ Search and filter endpoints by various criteria.
 **Returns:** List of matching endpoints
 
 ### `get_schema_details`
-Retrieve complete schema/model definitions.
+Retrieve complete schema/model definitions (rarely needed).
 
 **Parameters:**
 - `schemaName` (required): Name of the schema (e.g., `UserLoginRequest`)
 
 **Returns:** Full JSON schema with all properties, types, and requirements
+
+**Note:** With auto-resolution in `get_endpoint_details`, you rarely need this tool anymore!
 
 ## 💡 Usage Examples
 
@@ -247,6 +260,76 @@ AI will call:
 ```typescript
 get_schema_details(schemaName="CreateUserRequest")
 ```
+
+### Enhanced Example: See Everything in One Call ✨
+
+**Old way** (required 2+ calls):
+```typescript
+// Call 1: Get endpoint details
+get_endpoint_details(method="POST", path="/api/users/login")
+// Returns: { $ref: "#/components/schemas/UserLoginRequest" }
+
+// Call 2: Resolve the schema reference
+get_schema_details(schemaName="UserLoginRequest")
+```
+
+**New way** (single call):
+```typescript
+// One call gets everything!
+get_endpoint_details(method="POST", path="/api/users/login")
+```
+
+Returns:
+```markdown
+# POST /api/users/login
+
+**Request Body**
+Content-Type: application/json
+
+**Schema:**
+{
+  "type": "object",
+  "properties": {
+    "email": { "type": "string", "format": "email" },
+    "password": { "type": "string", "minLength": 8 }
+  },
+  "required": ["email", "password"]
+}
+
+**Example Request:**
+{
+  "email": "user@example.com",
+  "password": "secret123"
+}
+
+**Responses**
+### 200 OK
+
+**Schema:**
+{
+  "type": "object",
+  "properties": {
+    "success": { "type": "boolean" },
+    "data": {
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "user": { ... }
+      }
+    }
+  }
+}
+
+**Example Response:**
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user": { "id": 1, "email": "user@example.com" }
+  }
+}
+```
+
 
 ## 🏗️ Project Structure
 

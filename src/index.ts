@@ -130,6 +130,93 @@ function resolveSchemaRef(spec: OpenAPISpec, ref: string): Schema | null {
 }
 
 /**
+ * Recursively resolve all $ref references in a schema
+ */
+function resolveAllRefs(
+  schema: any,
+  spec: OpenAPISpec,
+  visited: Set<string> = new Set()
+): any {
+  if (!schema || typeof schema !== 'object') {
+    return schema;
+  }
+
+  // Handle $ref
+  if (schema.$ref) {
+    // Prevent circular references
+    if (visited.has(schema.$ref)) {
+      return { type: 'object', description: `Circular reference to ${schema.$ref}` };
+    }
+
+    visited.add(schema.$ref);
+    const resolved = resolveSchemaRef(spec, schema.$ref);
+    if (resolved) {
+      return resolveAllRefs(resolved, spec, visited);
+    }
+    return schema; // Return original if resolution fails
+  }
+
+  // Handle arrays
+  if (Array.isArray(schema)) {
+    return schema.map(item => resolveAllRefs(item, spec, new Set(visited)));
+  }
+
+  // Handle objects - recursively resolve all properties
+  const resolved: any = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'properties' && typeof value === 'object' && value !== null) {
+      resolved[key] = {};
+      for (const [propKey, propValue] of Object.entries(value)) {
+        resolved[key][propKey] = resolveAllRefs(propValue, spec, new Set(visited));
+      }
+    } else if (key === 'items' || key === 'additionalProperties') {
+      resolved[key] = resolveAllRefs(value, spec, new Set(visited));
+    } else if (key === 'allOf' || key === 'oneOf' || key === 'anyOf') {
+      resolved[key] = (value as any[]).map(item => 
+        resolveAllRefs(item, spec, new Set(visited))
+      );
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      // For nested objects, check if they have $ref
+      if ('$ref' in value) {
+        resolved[key] = resolveAllRefs(value, spec, new Set(visited));
+      } else {
+        resolved[key] = value;
+      }
+    } else {
+      resolved[key] = value;
+    }
+  }
+
+
+  return resolved;
+}
+
+/**
+ * Extract example data from OpenAPI media type
+ */
+function extractExamples(mediaType: any): string | null {
+  if (!mediaType) return null;
+
+  // Check for single example
+  if (mediaType.example) {
+    return JSON.stringify(mediaType.example, null, 2);
+  }
+
+  // Check for multiple examples (use first one)
+  if (mediaType.examples) {
+    const exampleKeys = Object.keys(mediaType.examples);
+    if (exampleKeys.length > 0) {
+      const firstExample = mediaType.examples[exampleKeys[0]];
+      if (firstExample.value) {
+        return JSON.stringify(firstExample.value, null, 2);
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Format endpoint details for display
  */
 function formatEndpointDetails(operation: Operation, method: string, path: string, spec: OpenAPISpec): string {
@@ -176,9 +263,25 @@ function formatEndpointDetails(operation: Operation, method: string, path: strin
 
     for (const [contentType, mediaType] of Object.entries(operation.requestBody.content)) {
       output += `**Content-Type:** ${contentType}\n\n`;
-      output += '```json\n';
-      output += JSON.stringify(mediaType.schema, null, 2);
-      output += '\n```\n\n';
+      
+      // Resolve all schema references
+      const resolvedSchema = mediaType.schema ? resolveAllRefs(mediaType.schema, spec) : null;
+      
+      if (resolvedSchema) {
+        output += `**Schema:**\n\n`;
+        output += '```json\n';
+        output += JSON.stringify(resolvedSchema, null, 2);
+        output += '\n```\n\n';
+      }
+      
+      // Add example if available
+      const example = extractExamples(mediaType);
+      if (example) {
+        output += `**Example Request:**\n\n`;
+        output += '```json\n';
+        output += example;
+        output += '\n```\n\n';
+      }
     }
   }
 
@@ -196,9 +299,25 @@ function formatEndpointDetails(operation: Operation, method: string, path: strin
         if (response.content) {
           for (const [contentType, mediaType] of Object.entries(response.content)) {
             output += `**Content-Type:** ${contentType}\n\n`;
-            output += '```json\n';
-            output += JSON.stringify(mediaType.schema, null, 2);
-            output += '\n```\n\n';
+            
+            // Resolve all schema references
+            const resolvedSchema = mediaType.schema ? resolveAllRefs(mediaType.schema, spec) : null;
+            
+            if (resolvedSchema) {
+              output += `**Schema:**\n\n`;
+              output += '```json\n';
+              output += JSON.stringify(resolvedSchema, null, 2);
+              output += '\n```\n\n';
+            }
+            
+            // Add example if available
+            const example = extractExamples(mediaType);
+            if (example) {
+              output += `**Example Response:**\n\n`;
+              output += '```json\n';
+              output += example;
+              output += '\n```\n\n';
+            }
           }
         }
       }
@@ -286,10 +405,13 @@ get_endpoint_details(method="POST", path="/business/v1/business-users/login")
 \`\`\`
 
 **Returns:**
-- Request body schema
+- Fully resolved request/response schemas (all \`$ref\` automatically resolved!)
+- Example request data (when available in OpenAPI spec)
+- Example response data (when available in OpenAPI spec)
 - Parameters (path, query, headers)
-- Response schemas for all status codes
 - Authentication requirements
+
+**✨ Enhanced:** Schemas are automatically resolved - no need to call \`get_schema_details\` separately!
 
 ### 2. \`search_endpoints\`
 Search and filter endpoints.
@@ -302,7 +424,7 @@ search_endpoints(method="POST")  # Filter by HTTP method
 \`\`\`
 
 ### 3. \`get_schema_details\`
-Get data schema/model definitions.
+Get standalone schema/model definitions (rarely needed now).
 
 **Usage:**
 \`\`\`
@@ -310,6 +432,8 @@ get_schema_details(schemaName="BusinessUserLoginRequest")
 \`\`\`
 
 **Returns:** Complete JSON schema with all properties, types, and requirements
+
+**Note:** With auto-resolution in \`get_endpoint_details\`, you rarely need this anymore!
 
 ## 📚 Available Resources
 
