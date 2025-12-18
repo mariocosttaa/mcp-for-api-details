@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "laravel-api": {
+      "command": "node",
+      "args": [
+        "/Users/mario/Documents/dev-projects/palanca-play-mcp-api/dist/index.js"
+      ],
+      "env": {
+        "API_BASE_URL": "http://localhost:8000",
+        "API_SPEC_PATH": "/docs/api.json"
+      }
+    }
+  }
+}
